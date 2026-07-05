@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -24,7 +24,7 @@
                 <a href="#" id="navRestrito"><i class="fa-solid fa-lock"></i> Painel Admin</a>
                 <a href="#" id="navSair" class="hidden"><i class="fa-solid fa-right-from-bracket"></i> Sair</a>
                 <button id="btnToggleTheme" class="btn-theme-toggle" type="button">
-                    <i class="fa-solid fa-moon"></i>
+                    <i class="fa-solid fa-sun"></i>
                 </button>
             </nav>
         </div>
@@ -32,7 +32,7 @@
 
     <main class="main-wrapper">
 
-        <section id="initialModal" class="glass-panel central-card animate-glow">
+        <section id="initialModal" class="glass-panel central-card">
             <h2 class="title-cyber">BEM-VINDO AO GAMER SPACE</h2>
             <p class="subtitle-cyber">Monte seu catálogo customizado diretamente em mídias USB de alta velocidade.</p>
             <div class="action-stack">
@@ -177,19 +177,19 @@
             <p class="subtitle-cyber text-center">Cada opção possui uma margem real calibrada pelo sistema para arquivos do sistema operacional.</p>
             
             <div class="pendrive-grid">
-                <div class="pendrive-card animate-pulse" data-size="32">
+                <div class="pendrive-card" data-size="32">
                     <div class="usb-icon"><i class="fa-solid fa-hdd"></i></div>
                     <h3>32 GB</h3>
                     <p class="real-space">Espaço útil estimado: <span class="lblRealSize32">Calculando...</span></p>
                     <span class="badge-card">Básico</span>
                 </div>
-                <div class="pendrive-card animate-pulse" data-size="64">
+                <div class="pendrive-card" data-size="64">
                     <div class="usb-icon"><i class="fa-solid fa-hdd"></i></div>
                     <h3>64 GB</h3>
                     <p class="real-space">Espaço útil estimado: <span class="lblRealSize64">Calculando...</span></p>
                     <span class="badge-card popular">Mais Vendido</span>
                 </div>
-                <div class="pendrive-card animate-pulse" data-size="128">
+                <div class="pendrive-card" data-size="128">
                     <div class="usb-icon"><i class="fa-solid fa-hdd"></i></div>
                     <h3>128 GB</h3>
                     <p class="real-space">Espaço útil estimado: <span class="lblRealSize128">Calculando...</span></p>
@@ -225,14 +225,12 @@
                 <div class="panel-box">
                     <h3><i class="fa-solid fa-magnifying-glass"></i> Títulos Disponíveis</h3>
                     <input type="text" id="searchGames" class="input-cyber search-input" placeholder="Buscar jogos por título...">
-                    <div id="availableGamesContainer" class="scrollable-games-list">
-                        </div>
+                    <div id="availableGamesContainer" class="scrollable-games-list"></div>
                 </div>
 
                 <div class="panel-box">
                     <h3><i class="fa-solid fa-folder-open"></i> Conteúdo do seu Pendrive</h3>
-                    <div id="myGamesContainer" class="scrollable-games-list">
-                        </div>
+                    <div id="myGamesContainer" class="scrollable-games-list"></div>
                 </div>
             </div>
 
@@ -307,14 +305,24 @@
             </div>
             <div class="panel-box" style="margin-top:20px;">
                 <h3><i class="fa-solid fa-clock-rotate-left"></i> Histórico de Encomendas</h3>
-                <div id="userListsHistoryContainer" class="history-grid-layout">
-                    </div>
+                <div id="userListsHistoryContainer" class="history-grid-layout"></div>
             </div>
         </section>
 
         <section id="adminDashboardScreen" class="glass-panel workspace-card hidden">
-            <h2 class="title-cyber"><i class="fa-solid fa-gears"></i> CONTROL ROOM - ADMINISTRADOR</h2>
-            <p class="subtitle-cyber">Gerencie o acervo geral de títulos, calibrações de mídias e listas operacionais na fila.</p>
+            <div class="workspace-header">
+                <div>
+                    <h2 class="title-cyber"><i class="fa-solid fa-gears"></i> CONTROL ROOM - ADMINISTRADOR</h2>
+                    <p class="subtitle-cyber">Gerencie o acervo geral de títulos, backups da base e listas em fila.</p>
+                </div>
+                <div class="admin-backup-actions flex-center">
+                    <button type="button" class="btn-gamer btn-small" id="btnExportarCatalogo" style="background:#2980b9;"><i class="fa-solid fa-file-export"></i> Exportar JSON</button>
+                    <label class="btn-gamer btn-small" style="background:#27ae60; cursor:pointer; margin:0;">
+                        <i class="fa-solid fa-file-import"></i> Importar JSON
+                        <input type="file" id="btnImportarCatalogoFile" accept=".json" style="display:none;">
+                    </label>
+                </div>
+            </div>
 
             <div class="admin-dashboard-grid">
                 <div class="panel-box">
@@ -367,31 +375,38 @@
 
             <div class="panel-box" style="margin-top:20px;">
                 <h3><i class="fa-solid fa-layer-group"></i> Fila de Produção (Listas Recebidas)</h3>
-                <div id="adminOrdersContainer" class="admin-list-rows">
-                    </div>
+                <div id="adminOrdersContainer" class="admin-list-rows"></div>
             </div>
 
             <div class="panel-box" style="margin-top:20px;">
                 <h3><i class="fa-solid fa-database"></i> Títulos Cadastrados no Sistema</h3>
-                <div id="adminCatalogContainer" class="admin-list-rows">
-                    </div>
+                <div id="adminCatalogContainer" class="admin-list-rows"></div>
             </div>
         </section>
 
     </main>
 
     <div id="confirmationModal" class="fixed-modal-overlay hidden">
-        <div class="glass-panel confirmation-box text-center animate-glow">
+        <div class="glass-panel confirmation-box text-center">
             <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
-            <h2 class="title-cyber">LISTA TRANSMITIDA À OPERAÇÃO!</h2>
-            <p class="subtitle-cyber">Seus dados e escolhas de armazenamento foram guardados no ecossistema Firebase.</p>
-            <p class="form-instruction">Para acelerar o início do processo de gravação física na sua mídia USB, clique abaixo para despachar um aviso direto ao nosso WhatsApp comercial.</p>
+            <h2 class="title-cyber">LISTA TRANSMITIDA COM SUCESSO!</h2>
+            <p class="subtitle-cyber">Seu catálogo digital foi processado e salvo.</p>
             
-            <div class="flex-center" style="gap:15px; margin-top:20px;">
-                <a href="#" id="btnConfirmacaoWhatsapp" target="_blank" class="btn-gamer btn-accent" style="background:#25D366; color:#fff; border-color:#25D366;">
-                    <i class="fa-brands fa-whatsapp"></i> Chamar no WhatsApp
+            <p class="form-instruction" style="margin-bottom:15px; color:var(--text-muted);">Como deseja obter ou enviar o espelho desta folha de gravação (A4)?</p>
+            
+            <div class="action-stack" style="gap:10px;">
+                <button type="button" id="btnVisualizarListaBase64" class="btn-gamer" style="background:#3498db;">
+                    <i class="fa-solid fa-file-lines"></i> Visualizar Folha A4 (Nova Aba)
+                </button>
+                <button type="button" id="btnBaixarListaJpeg" class="btn-gamer" style="background:#2ecc71;">
+                    <i class="fa-solid fa-file-image"></i> Baixar Imagem JPEG da Folha
+                </button>
+                <a href="#" id="btnConfirmacaoWhatsapp" target="_blank" class="btn-gamer" style="background:#25D366; text-decoration:none;">
+                    <i class="fa-brands fa-whatsapp"></i> Encaminhar Ordem pelo WhatsApp
                 </a>
-                <button type="button" class="btn-gamer btn-secondary" id="btnFecharConfirmacao">Concluir Painel</button>
+                <button type="button" class="btn-gamer btn-secondary" id="btnFecharConfirmacao" style="margin-top:10px;">
+                    Voltar ao Painel
+                </button>
             </div>
         </div>
     </div>
