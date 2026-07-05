@@ -65,7 +65,7 @@
                 </button>
                 <div class="form-links">
                     <a href="#" id="btnIrRecuperar">Esqueceu a senha?</a>
-                    <button type="button" class="btn-gamer btn-small btnBackInitial">Voltar</button>
+                    <button type="button" class="btn-gamer btn-secondary btn-small btnBackInitial">Voltar</button>
                 </div>
             </form>
         </section>
@@ -97,7 +97,7 @@
                     <input type="text" id="cadSobrenome" required placeholder="Seu sobrenome">
                 </div>
                 <div class="input-group span-2">
-                    <label for="cadEmail">E-mail Comercial (Provedor Famoso)</label>
+                    <label for="cadEmail">E-mail Comercial</label>
                     <input type="email" id="cadEmail" required placeholder="Ex: jogador@gmail.com">
                 </div>
                 <div class="input-group">
@@ -145,9 +145,9 @@
                         <option value="TO">TO - Tocantins</option>
                     </select>
                 </div>
-                <div class="span-2 flex-center" style="margin-top: 15px;">
+                <div class="span-2 flex-center" style="margin-top: 10px;">
                     <button type="submit" class="btn-gamer btn-primary" id="btnCadastroSubmit">
-                        <span class="btn-text"><i class="fa-solid fa-user-plus"></i> Concluir Cadastro</span>
+                        <span class="btn-text"><i class="fa-solid fa-user-plus"></i> Concluir</span>
                     </button>
                     <button type="button" class="btn-gamer btn-secondary btnBackInitial">Cancelar</button>
                 </div>
@@ -158,7 +158,7 @@
             <h2 class="title-cyber"><i class="fa-solid fa-terminal"></i> TERMINAL RESTRITO</h2>
             <form id="formAdminLogin" class="form-cyber">
                 <div class="input-group">
-                    <label for="adminEmail">Chave de Identificação (E-mail)</label>
+                    <label for="adminEmail">Chave de Identificação</label>
                     <input type="email" id="adminEmail" required placeholder="admin@admin.com">
                 </div>
                 <div class="input-group">
@@ -180,19 +180,19 @@
                 <div class="pendrive-card" data-size="32">
                     <div class="usb-icon"><i class="fa-solid fa-hdd"></i></div>
                     <h3>32 GB</h3>
-                    <p class="real-space">Espaço útil estimado: <span class="lblRealSize32">Calculando...</span></p>
+                    <p class="real-space">Espaço útil: <span class="lblRealSize32">Calculando...</span></p>
                     <span class="badge-card">Básico</span>
                 </div>
                 <div class="pendrive-card" data-size="64">
                     <div class="usb-icon"><i class="fa-solid fa-hdd"></i></div>
                     <h3>64 GB</h3>
-                    <p class="real-space">Espaço útil estimado: <span class="lblRealSize64">Calculando...</span></p>
+                    <p class="real-space">Espaço útil: <span class="lblRealSize64">Calculando...</span></p>
                     <span class="badge-card popular">Mais Vendido</span>
                 </div>
                 <div class="pendrive-card" data-size="128">
                     <div class="usb-icon"><i class="fa-solid fa-hdd"></i></div>
                     <h3>128 GB</h3>
-                    <p class="real-space">Espaço útil estimado: <span class="lblRealSize128">Calculando...</span></p>
+                    <p class="real-space">Espaço útil: <span class="lblRealSize128">Calculando...</span></p>
                     <span class="badge-card">Premium</span>
                 </div>
             </div>
@@ -206,7 +206,7 @@
             <div class="workspace-header">
                 <div>
                     <h2 class="title-cyber">MONTANDO ARMAZENAMENTO DIGITAL</h2>
-                    <p class="subtitle-cyber">Mídia Alvo: <span id="txtPendriveSelecionado">--</span> | Capacidade Real Máxima: <span id="txtEspaçoRealMax">--</span></p>
+                    <p class="subtitle-cyber">Mídia: <span id="txtPendriveSelecionado">--</span> | Espaço Real Máximo: <span id="txtEspaçoRealMax">--</span></p>
                 </div>
                 <button type="button" class="btn-gamer btn-secondary btn-small" id="btnAlterarPendrive"><i class="fa-solid fa-rotate"></i> Mudar Mídia</button>
             </div>
@@ -224,7 +224,7 @@
             <div class="builder-split-grid">
                 <div class="panel-box">
                     <h3><i class="fa-solid fa-magnifying-glass"></i> Títulos Disponíveis</h3>
-                    <input type="text" id="searchGames" class="input-cyber search-input" placeholder="Buscar jogos por título...">
+                    <input type="text" id="searchGames" class="input-cyber search-input" placeholder="Buscar jogos...">
                     <div id="availableGamesContainer" class="scrollable-games-list"></div>
                 </div>
 
@@ -234,7 +234,7 @@
                 </div>
             </div>
 
-            <div class="checkout-footer-panel glass-panel">
+            <div class="checkout-footer-panel panel-box">
                 <h3><i class="fa-solid fa-truck-ramp-box"></i> Confirmar Informações de Envio</h3>
                 <form id="formEnvioLista" class="form-cyber grid-3">
                     <div class="input-group">
@@ -246,7 +246,7 @@
                         <input type="text" id="envioSobrenome" required placeholder="Sobrenome">
                     </div>
                     <div class="input-group">
-                        <label>WhatsApp para Contato</label>
+                        <label>WhatsApp</label>
                         <input type="text" id="envioWhatsapp" required placeholder="(88) 99999-9999">
                     </div>
                     <div class="input-group span-2">
@@ -286,9 +286,9 @@
                             <option value="TO">TO - Tocantins</option>
                         </select>
                     </div>
-                    <div class="span-3 flex-center" style="margin-top:15px;">
-                        <button type="submit" class="btn-gamer btn-accent size-large" id="btnEnviarListaFinal">
-                            <span class="btn-text"><i class="fa-solid fa-cloud-arrow-up"></i> Concluir e Solicitar Gravação</span>
+                    <div class="span-3 flex-center" style="margin-top:10px;">
+                        <button type="submit" class="btn-gamer btn-accent" id="btnEnviarListaFinal">
+                            <span class="btn-text"><i class="fa-solid fa-cloud-arrow-up"></i> Solicitar Gravação</span>
                         </button>
                     </div>
                 </form>
@@ -312,8 +312,8 @@
         <section id="adminDashboardScreen" class="glass-panel workspace-card hidden">
             <div class="workspace-header">
                 <div>
-                    <h2 class="title-cyber"><i class="fa-solid fa-gears"></i> CONTROL ROOM - ADMINISTRADOR</h2>
-                    <p class="subtitle-cyber">Gerencie o acervo geral de títulos, backups da base e listas em fila.</p>
+                    <h2 class="title-cyber"><i class="fa-solid fa-gears"></i> CONTROL ROOM - ADMIN</h2>
+                    <p class="subtitle-cyber">Gerencie o acervo geral, backups e listas em fila.</p>
                 </div>
                 <div class="admin-backup-actions flex-center">
                     <button type="button" class="btn-gamer btn-small" id="btnExportarCatalogo" style="background:#2980b9;"><i class="fa-solid fa-file-export"></i> Exportar JSON</button>
@@ -326,7 +326,7 @@
 
             <div class="admin-dashboard-grid">
                 <div class="panel-box">
-                    <h3><i class="fa-solid fa-square-plus"></i> Gerenciar Título (Inserir/Editar)</h3>
+                    <h3><i class="fa-solid fa-square-plus"></i> Gerenciar Título</h3>
                     <form id="formAdminAddJogo" class="form-cyber">
                         <div class="input-group">
                             <label>Nome do Jogo</label>
@@ -346,13 +346,13 @@
                             </div>
                         </div>
                         <button type="submit" class="btn-gamer btn-primary" id="btnAddJogoSubmit">
-                            <span class="btn-text"><i class="fa-solid fa-plus"></i> Adicionar Jogo</span>
+                            <span class="btn-text"><i class="fa-solid fa-plus"></i> Salvar Jogo</span>
                         </button>
                     </form>
                 </div>
 
                 <div class="panel-box">
-                    <h3><i class="fa-solid fa-sliders"></i> Calibragem de Mídias (GB Reais)</h3>
+                    <h3><i class="fa-solid fa-sliders"></i> Calibragem de Mídias</h3>
                     <form id="formAdminConfigPendrives" class="form-cyber">
                         <div class="input-group">
                             <label>Pendrive 32GB útil (GB)</label>
@@ -367,7 +367,7 @@
                             <input type="number" id="cfgSize128" step="0.01" required>
                         </div>
                         <button type="submit" class="btn-gamer btn-accent" id="btnConfigPendrivesSubmit">
-                            <span class="btn-text"><i class="fa-solid fa-floppy-disk"></i> Salvar Calibragem</span>
+                            <span class="btn-text"><i class="fa-solid fa-floppy-disk"></i> Salvar</span>
                         </button>
                     </form>
                 </div>
@@ -379,7 +379,7 @@
             </div>
 
             <div class="panel-box" style="margin-top:20px;">
-                <h3><i class="fa-solid fa-database"></i> Títulos Cadastrados no Sistema</h3>
+                <h3><i class="fa-solid fa-database"></i> Títulos Cadastrados</h3>
                 <div id="adminCatalogContainer" class="admin-list-rows"></div>
             </div>
         </section>
@@ -389,20 +389,20 @@
     <div id="confirmationModal" class="fixed-modal-overlay hidden">
         <div class="glass-panel confirmation-box text-center">
             <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
-            <h2 class="title-cyber">LISTA TRANSMITIDA COM SUCESSO!</h2>
-            <p class="subtitle-cyber">Seu catálogo digital foi processado e salvo.</p>
+            <h2 class="title-cyber">TRANSMITIDO COM SUCESSO!</h2>
+            <p class="subtitle-cyber">Seu catálogo digital foi processado.</p>
             
-            <p class="form-instruction" style="margin-bottom:15px; color:var(--text-muted);">Como deseja obter ou enviar o espelho desta folha de gravação (A4)?</p>
+            <p class="form-instruction" style="margin-bottom:15px; color:var(--text-muted);">Como deseja obter o espelho desta folha de gravação (A4)?</p>
             
-            <div class="action-stack" style="gap:10px;">
+            <div class="action-stack">
                 <button type="button" id="btnVisualizarListaBase64" class="btn-gamer" style="background:#3498db;">
-                    <i class="fa-solid fa-file-lines"></i> Visualizar Folha A4 (Nova Aba)
+                    <i class="fa-solid fa-file-lines"></i> Visualizar Folha A4
                 </button>
                 <button type="button" id="btnBaixarListaJpeg" class="btn-gamer" style="background:#2ecc71;">
-                    <i class="fa-solid fa-file-image"></i> Baixar Imagem JPEG da Folha
+                    <i class="fa-solid fa-file-image"></i> Baixar Imagem JPEG
                 </button>
                 <a href="#" id="btnConfirmacaoWhatsapp" target="_blank" class="btn-gamer" style="background:#25D366; text-decoration:none;">
-                    <i class="fa-brands fa-whatsapp"></i> Encaminhar Ordem pelo WhatsApp
+                    <i class="fa-brands fa-whatsapp"></i> Enviar pelo WhatsApp
                 </a>
                 <button type="button" class="btn-gamer btn-secondary" id="btnFecharConfirmacao" style="margin-top:10px;">
                     Voltar ao Painel
