@@ -337,7 +337,7 @@ function configurarModalSucessoBotoes(pacote) {
     // 3. Ação Chamar no WhatsApp Comercial
     const btnWhats = document.getElementById('btnConfirmacaoWhatsapp');
     if(btnWhats) {
-        const numWhats = "5588999999999"; 
+        const numWhats = "5588988470190"; 
         const msg = encodeURIComponent(`Olá! Acabei de registrar minha lista de jogos no Sistema.\nMídia: Pendrive ${pacote.pendriveNominal}GB (${pacote.espacoOcupadoGB.toFixed(2)} GB Usados).\nCliente: ${pacote.cliente.nome}. Aguardo confirmação operacional!`);
         btnWhats.href = `https://wa.me/${numWhats}?text=${msg}`;
     }
