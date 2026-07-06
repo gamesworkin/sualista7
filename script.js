@@ -554,7 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(globalCatalog, null, 2));
         const downloadAnchor = document.createElement('a');
         downloadAnchor.setAttribute("href", dataStr);
-        downloadAnchor.setAttribute("download", `GamerSpace-Catalogo-Backup.json`);
+        downloadAnchor.setAttribute("download", `WorkinStore-Catalogo-Backup.json`);
         downloadAnchor.click();
     });
 
