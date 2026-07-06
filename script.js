@@ -328,7 +328,7 @@ function configurarModalSucessoBotoes(pacote) {
         btnBaixar.onclick = (e) => {
             e.preventDefault();
             const link = document.createElement('a');
-            link.download = `Lista-GamerSpace-${pacote.cliente.nome}.jpg`;
+            link.download = `Lista-Workin-Store-${pacote.cliente.nome}.jpg`;
             link.href = base64Data;
             link.click();
         };
