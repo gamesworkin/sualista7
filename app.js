@@ -1,12 +1,23 @@
 /* ============================================================
-   MONTE SEU PENDRIVE OPL — Workin'Store
-   ============================================================
-   >>> PREENCHA AS CREDENCIAIS DO FIREBASE ABAIXO <<<
-   Crie um projeto em https://console.firebase.google.com
-   Ative: Authentication (Email/Password) e Realtime Database.
-   Cadastre o usuário admin@admin.com em Authentication > Users.
-   ============================================================ */
-const FIREBASE_CONFIG = {
+   Catálogo Retro - script.js
+   HTML + CSS + JS puro com Firebase (Auth + Realtime Database)
+   SDK Modular via CDN.
+   Substitua as credenciais em `firebaseConfig` pelas suas.
+============================================================ */
+// ------------------------------------------------------------
+// IMPORTS FIREBASE (SDK Modular)
+// ------------------------------------------------------------
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getDatabase, ref, onValue, set, push, update, remove, get, child,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+// ============================================================
+// CONFIG FIREBASE (substitua pelas suas credenciais)
+// ============================================================
+const firebaseConfig = {
   apiKey: "AIzaSyBvdW06QiHlJA5glUKtucX6hL8LdvlTPME",
   authDomain: "sua-lista-e6ef3.firebaseapp.com",
   databaseURL: "https://sua-lista-e6ef3-default-rtdb.firebaseio.com",
@@ -15,607 +26,630 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "689656568290",
   appId: "1:689656568290:web:8f82257c9bb23f8b1481bb"
 };
-
-// Config do WhatsApp de suporte
-const WHATSAPP_NUMBER = "5588988470190";
-// Único e-mail com privilégios de admin
 const ADMIN_EMAIL = "admin@admin.com";
-// Jogos por página
-const PAGE_SIZE = 30;
-
-/* ============================================================
-   INICIALIZAÇÃO FIREBASE
-   ============================================================ */
-firebase.initializeApp(FIREBASE_CONFIG);
-const auth = firebase.auth();
-const db = firebase.database();
-
-/* ============================================================
-   ESTADO GLOBAL
-   ============================================================ */
+// ============================================================
+// ESTADO GLOBAL
+// ============================================================
 const state = {
-  games: {},       // { id: game }
-  categories: {},  // extraídas
-  capacities: { 32: 29.5, 64: 59, 128: 118 }, // defaults reais
-  selected: {},    // { id: game }
-  capacity: 32,
-  page: 1,
-  query: "",
-  category: "",
-  sort: "az",
-  userInfo: null,
-  editingGameId: null,
-  editingCoverBase64: null,
-  isAdmin: false
+  games: [],
+  categories: [],
+  platforms: [],
+  banners: [],
+  settings: {},
+  currentUser: null,
+  isAdmin: false,
+  filters: { search: "", category: "", platform: "", year: "", genre: "", sort: "recent" },
 };
-
-/* ============================================================
-   HELPERS
-   ============================================================ */
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => document.querySelectorAll(sel);
-
-const OPL_RESERVED = 0.5;
-function totalCapacity() {
-  const real = Number(state.capacities[state.capacity]) || state.capacity;
-  return Math.max(0, real - OPL_RESERVED);
+let app, auth, db;
+// ============================================================
+// UTILS
+// ============================================================
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+const escapeHtml = (str = "") =>
+  String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function showLoading() { $("#loading").classList.add("show"); }
+function hideLoading() { $("#loading").classList.remove("show"); }
+function showToast(msg, type = "") {
+  const el = $("#toast");
+  el.textContent = msg;
+  el.className = "toast show " + type;
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => el.classList.remove("show"), 2600);
 }
-function usedGb() {
-  return Object.values(state.selected).reduce((s, g) => s + Number(g.size_gb || 0), 0);
+function confirmAction(msg) { return window.confirm(msg); }
+function ytEmbedUrl(url) {
+  if (!url) return "";
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/))([\w-]{11})/);
+  return m ? `https://www.youtube.com/embed/${m[1]}` : "";
 }
-function openModal(id) { $("#" + id).classList.remove("hidden"); }
-function closeModal(id) { $("#" + id).classList.add("hidden"); }
-document.addEventListener("click", (e) => {
-  if (e.target.matches("[data-close]") || e.target.classList.contains("modal-close")) {
-    const modal = e.target.closest(".modal");
-    if (modal) modal.classList.add("hidden");
-  }
-});
-
-/* ============================================================
-   AUTENTICAÇÃO
-   ============================================================ */
-auth.onAuthStateChanged((user) => {
-  const isAdmin = user && user.email === ADMIN_EMAIL;
-  state.isAdmin = !!isAdmin;
-  document.body.classList.toggle("is-admin", !!isAdmin);
-  if (isAdmin) {
-    loadAdminGames();
-    loadAdminLists();
-  }
-});
-
-$("#btn-admin-login").addEventListener("click", () => openModal("modal-login"));
-$("#btn-admin-logout").addEventListener("click", () => auth.signOut());
-$("#btn-admin-panel").addEventListener("click", () => openModal("modal-admin"));
-
-$("#btn-login").addEventListener("click", async () => {
-  const email = $("#login-email").value.trim();
-  const pass = $("#login-pass").value;
-  const err = $("#login-err");
-  err.classList.add("hidden");
-  if (email !== ADMIN_EMAIL) {
-    err.textContent = "Apenas admin@admin.com pode acessar o painel.";
-    err.classList.remove("hidden"); return;
-  }
+// ============================================================
+// INIT FIREBASE
+// ============================================================
+function initFirebase() {
   try {
-    await auth.signInWithEmailAndPassword(email, pass);
-    closeModal("modal-login");
-  } catch (e) {
-    err.textContent = "Falha no login: " + e.message;
-    err.classList.remove("hidden");
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getDatabase(app);
+    onAuthStateChanged(auth, handleAuthChange);
+    subscribeData();
+  } catch (err) {
+    console.error("Erro ao inicializar Firebase:", err);
+    showToast("Configure o firebaseConfig no script.js", "error");
   }
-});
-
-/* ============================================================
-   CARREGAR DADOS DO REALTIME DB
-   ============================================================ */
-db.ref("games").on("value", (snap) => {
-  state.games = snap.val() || {};
-  // extrair categorias
-  const cats = new Set();
-  Object.values(state.games).forEach((g) => { if (g.category) cats.add(g.category); });
-  state.categories = [...cats].sort();
-  refreshCatalog();
-  refreshFilterCats();
-  refreshAdminGames();
-});
-
-db.ref("capacities").on("value", (snap) => {
-  const v = snap.val();
-  if (v) state.capacities = { ...state.capacities, ...v };
-  fillCapacityInputs();
-  refreshStorage();
-});
-
-db.ref("lists").on("value", (snap) => {
-  state.lists = snap.val() || {};
-  if (state.isAdmin) loadAdminLists();
-});
-
-/* ============================================================
-   CATÁLOGO / FILTROS / PAGINAÇÃO
-   ============================================================ */
-$("#search").addEventListener("input", (e) => { state.query = e.target.value.toLowerCase(); state.page = 1; refreshCatalog(); });
-$("#filter-cat").addEventListener("change", (e) => { state.category = e.target.value; state.page = 1; refreshCatalog(); });
-$("#sort-mode").addEventListener("change", (e) => { state.sort = e.target.value; refreshCatalog(); });
-$("#prev-page").addEventListener("click", () => { if (state.page > 1) { state.page--; refreshCatalog(); window.scrollTo({top:0, behavior:'smooth'}); } });
-$("#next-page").addEventListener("click", () => { state.page++; refreshCatalog(); window.scrollTo({top:0, behavior:'smooth'}); });
-
-function refreshFilterCats() {
-  const sel = $("#filter-cat");
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">Todas as categorias</option>' +
-    state.categories.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
-  sel.value = cur;
-  const dl = $("#cat-list");
-  dl.innerHTML = state.categories.map((c) => `<option value="${escapeHtml(c)}">`).join("");
 }
-
-function filterAndSort() {
-  let list = Object.entries(state.games).map(([id, g]) => ({ id, ...g }));
-  if (state.query) {
-    list = list.filter((g) =>
-      (g.name || "").toLowerCase().includes(state.query) ||
-      (g.serial_code || "").toLowerCase().includes(state.query)
-    );
-  }
-  if (state.category) list = list.filter((g) => g.category === state.category);
-  switch (state.sort) {
-    case "az": list.sort((a, b) => (a.name || "").localeCompare(b.name || "")); break;
-    case "za": list.sort((a, b) => (b.name || "").localeCompare(a.name || "")); break;
-    case "size-asc": list.sort((a, b) => (a.size_gb || 0) - (b.size_gb || 0)); break;
-    case "size-desc": list.sort((a, b) => (b.size_gb || 0) - (a.size_gb || 0)); break;
-  }
-  return list;
+// ============================================================
+// AUTH
+// ============================================================
+async function login(email, password) {
+  showLoading();
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    console.error(err);
+    showToast("Falha ao entrar. Verifique e-mail e senha.", "error");
+  } finally { hideLoading(); }
 }
-
-function refreshCatalog() {
-  const all = filterAndSort();
-  $("#game-total").textContent = Object.keys(state.games).length;
-  const totalPages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
-  if (state.page > totalPages) state.page = totalPages;
-  const start = (state.page - 1) * PAGE_SIZE;
-  const pageItems = all.slice(start, start + PAGE_SIZE);
-
-  const container = $("#catalog");
-  container.innerHTML = pageItems.map((g) => {
-    const sel = !!state.selected[g.id];
-    const cover = g.cover_base64
-      ? `<img class="game-cover" src="${g.cover_base64}" alt="${escapeHtml(g.name)}" />`
-      : `<div class="game-cover placeholder">🎮</div>`;
-    return `
-      <div class="game-card ${sel ? 'selected' : ''}" data-id="${g.id}">
-        ${cover}
-        <div class="game-body">
-          <p class="game-name">${escapeHtml(g.name || '')}</p>
-          <div class="game-meta">
-            <span>${escapeHtml(g.serial_code || '')}</span>
-            <span>${Number(g.size_gb || 0).toFixed(2)} GB</span>
-          </div>
-        </div>
-      </div>`;
-  }).join("") || `<p class="muted" style="grid-column:1/-1;text-align:center;padding:40px 0;">Nenhum jogo encontrado.</p>`;
-
-  container.querySelectorAll(".game-card").forEach((el) => {
-    el.addEventListener("click", () => toggleSelect(el.dataset.id));
-  });
-
-  $("#page-info").textContent = `Página ${state.page} de ${totalPages}`;
-  $("#prev-page").disabled = state.page <= 1;
-  $("#next-page").disabled = state.page >= totalPages;
+async function logout() {
+  await signOut(auth);
+  closeAdminPanel();
+  showToast("Sessão encerrada.");
 }
-
-/* ============================================================
-   SELEÇÃO
-   ============================================================ */
-function toggleSelect(id) {
-  const g = state.games[id];
-  if (!g) return;
-  if (state.selected[id]) delete state.selected[id];
-  else state.selected[id] = { id, ...g };
-  refreshCatalog();
-  refreshStorage();
-}
-$("#btn-clear-sel").addEventListener("click", () => { state.selected = {}; refreshCatalog(); refreshStorage(); });
-$("#btn-view-sel").addEventListener("click", () => showSelectionModal());
-
-function showSelectionModal() {
-  const list = Object.values(state.selected);
-  const ol = $("#sel-list");
-  ol.innerHTML = list.length ? list.map((g, i) => `
-    <li>
-      <span>${i + 1}</span>
-      <div><b>${escapeHtml(g.name)}</b><br/><small style="color:#8892b0">${escapeHtml(g.serial_code || '')}</small></div>
-      <span>${Number(g.size_gb).toFixed(2)}GB</span>
-      <button data-remove="${g.id}">✕</button>
-    </li>`).join("") : `<p class="muted">Nenhum jogo selecionado.</p>`;
-  ol.querySelectorAll("[data-remove]").forEach((b) => {
-    b.addEventListener("click", () => { delete state.selected[b.dataset.remove]; refreshCatalog(); refreshStorage(); showSelectionModal(); });
-  });
-  openModal("modal-selection");
-}
-
-/* ============================================================
-   CAPACIDADE / STORAGE
-   ============================================================ */
-$$("#cap-buttons .cap-btn").forEach((b) => {
-  b.addEventListener("click", () => {
-    state.capacity = Number(b.dataset.cap);
-    $$("#cap-buttons .cap-btn").forEach((x) => x.classList.toggle("active", x === b));
-    refreshStorage();
-  });
-});
-
-function refreshStorage() {
-  const used = usedGb();
-  const total = totalCapacity();
-  const rem = Math.max(0, total - used);
-  const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
-  const over = used > total;
-  const count = Object.keys(state.selected).length;
-
-  $("#sel-count").textContent = `${count} ${count === 1 ? 'jogo selecionado' : 'jogos selecionados'}`;
-  $("#used-gb").textContent = used.toFixed(2) + " GB";
-  $("#rem-gb").textContent = rem.toFixed(2) + " GB";
-  $("#tot-gb").textContent = total.toFixed(2) + " GB";
-  $("#progress-bar").style.width = pct + "%";
-  $("#progress-bar").classList.toggle("over", over);
-  $("#over-msg").classList.toggle("hidden", !over);
-
-  $("#sel-badge").textContent = count;
-  $("#sel-title").textContent = count ? "Sua seleção" : "Nenhum jogo selecionado";
-  $("#sel-sub").textContent = `${used.toFixed(2)} GB usados · ${rem.toFixed(2)} GB restantes`;
-}
-
-function fillCapacityInputs() {
-  $("#real-32").value = state.capacities[32];
-  $("#real-64").value = state.capacities[64];
-  $("#real-128").value = state.capacities[128];
-}
-$("#btn-save-caps").addEventListener("click", async () => {
-  const v = {
-    32: Number($("#real-32").value),
-    64: Number($("#real-64").value),
-    128: Number($("#real-128").value)
-  };
-  await db.ref("capacities").set(v);
-  alert("Capacidades salvas.");
-});
-
-/* ============================================================
-   ENVIO DA LISTA — Dados do cliente + validação
-   ============================================================ */
-$("#btn-send-list").addEventListener("click", () => tryOpenSendFlow());
-
-function tryOpenSendFlow() {
-  const count = Object.keys(state.selected).length;
-  if (!count) { alert("Selecione ao menos um jogo."); return; }
-  if (usedGb() > totalCapacity()) {
-    alert("Sua seleção ultrapassa a capacidade do pendrive. Remova alguns jogos.");
+function handleAuthChange(user) {
+  state.currentUser = user;
+  state.isAdmin = !!(user && user.email === ADMIN_EMAIL);
+  if (user && !state.isAdmin) {
+    showToast("Acesso negado.", "error");
+    signOut(auth);
     return;
   }
-  // se já temos dados, pula para modal de envio
-  if (state.userInfo) openSendModal();
-  else openModal("modal-userinfo");
-}
-$("#btn-open-send").addEventListener("click", () => { closeModal("modal-selection"); tryOpenSendFlow(); });
-
-$("#btn-userinfo-continue").addEventListener("click", () => {
-  const nome = $("#u-nome").value.trim();
-  const sobrenome = $("#u-sobrenome").value.trim();
-  const whatsapp = $("#u-whatsapp").value.trim();
-  const cidade = $("#u-cidade").value.trim();
-  const uf = $("#u-uf").value.trim().toUpperCase();
-  const err = $("#userinfo-err");
-  if (!nome || !sobrenome || !whatsapp || !cidade || !uf) {
-    err.textContent = "Preencha todos os campos obrigatórios.";
-    err.classList.remove("hidden"); return;
+  if (state.isAdmin) {
+    closeModal("loginModal");
+    openAdminPanel();
+    showToast("Bem-vindo, admin!", "success");
   }
-  if (uf.length !== 2) {
-    err.textContent = "UF deve ter 2 letras."; err.classList.remove("hidden"); return;
-  }
-  err.classList.add("hidden");
-  state.userInfo = { nome, sobrenome, whatsapp, cidade, uf };
-  closeModal("modal-userinfo");
-  openSendModal();
-});
-
-function buildListText() {
-  const u = state.userInfo || {};
-  const list = Object.values(state.selected);
-  const header =
-`=== LISTA DE JOGOS - PENDRIVE OPL ${state.capacity}GB ===
-Cliente: ${u.nome} ${u.sobrenome}
-WhatsApp: ${u.whatsapp}
-Cidade: ${u.cidade}/${u.uf}
-Data: ${new Date().toLocaleString('pt-BR')}
-======================================
-`;
-  const body = list.map((g, i) => `${String(i+1).padStart(2,"0")}. ${g.name} [${g.serial_code}] - ${Number(g.size_gb).toFixed(2)}GB`).join("\n");
-  const footer = `\n\nTotal: ${list.length} jogos | ${usedGb().toFixed(2)}GB / ${totalCapacity().toFixed(2)}GB`;
-  return header + body + footer;
 }
-
-function openSendModal() {
-  $("#list-preview").textContent = buildListText();
-  // salvar lista no realtime db
-  saveListToDb();
-  openModal("modal-send");
-}
-
-async function saveListToDb() {
-  const payload = {
-    userInfo: state.userInfo,
-    capacity: state.capacity,
-    usedGb: Number(usedGb().toFixed(2)),
-    totalGb: Number(totalCapacity().toFixed(2)),
-    games: Object.values(state.selected).map((g) => ({
-      id: g.id, name: g.name, serial_code: g.serial_code || "", size_gb: g.size_gb
-    })),
-    status: "pending",
-    createdAt: Date.now()
-  };
-  try { await db.ref("lists").push(payload); } catch(e) { console.warn("Falha ao salvar lista:", e); }
-}
-
-$("#btn-copy-text").addEventListener("click", async () => {
-  await navigator.clipboard.writeText(buildListText());
-  alert("Lista copiada!");
-});
-
-$("#btn-send-wa-text").addEventListener("click", () => {
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(buildListText())}`;
-  window.open(url, "_blank");
-});
-
-$("#btn-download-jpg").addEventListener("click", async () => {
-  const dataUrl = await renderListToJpg();
-  const a = document.createElement("a");
-  a.href = dataUrl;
-  a.download = `pendrive-${state.capacity}gb-${Date.now()}.jpg`;
-  a.click();
-});
-
-$("#btn-send-wa-jpg").addEventListener("click", async () => {
-  await renderListToJpg(); // gera e baixa
-  const msg = `Olá! Segue minha lista de jogos (JPG em anexo).\n\n${buildListText()}`;
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
-  // WhatsApp Web não aceita anexos via URL. Baixamos o JPG e o cliente anexa manualmente.
-  const dataUrl = await renderListToJpg();
-  const a = document.createElement("a");
-  a.href = dataUrl; a.download = `pendrive-${state.capacity}gb.jpg`; a.click();
-  setTimeout(() => window.open(url, "_blank"), 500);
-});
-
-async function renderListToJpg(userInfoOverride, gamesOverride, capacityOverride) {
-  const u = userInfoOverride || state.userInfo || {};
-  const list = gamesOverride || Object.values(state.selected);
-  const cap = capacityOverride || state.capacity;
-  const sheet = document.createElement("div");
-  sheet.className = "jpg-sheet";
-  sheet.innerHTML = `
-    <h1>Monte seu Pendrive OPL - ${cap}GB</h1>
-    <div class="client-info">
-      <p><b>Cliente:</b> ${escapeHtml(u.nome || '')} ${escapeHtml(u.sobrenome || '')}</p>
-      <p><b>WhatsApp:</b> ${escapeHtml(u.whatsapp || '')}</p>
-      <p><b>Cidade/UF:</b> ${escapeHtml(u.cidade || '')}/${escapeHtml(u.uf || '')}</p>
-      <p><b>Data:</b> ${new Date().toLocaleString('pt-BR')}</p>
-    </div>
-    <ol>
-      ${list.map((g) => `<li>${escapeHtml(g.name)} <b>[${escapeHtml(g.serial_code || '')}]</b> — ${Number(g.size_gb).toFixed(2)}GB</li>`).join("")}
-    </ol>
-    <div class="jpg-footer">Total: ${list.length} jogos · Workin'Store</div>
-  `;
-  const area = $("#jpg-render-area");
-  area.innerHTML = ""; area.appendChild(sheet);
-  const canvas = await html2canvas(sheet, { backgroundColor: "#0f1424", scale: 2 });
-  return canvas.toDataURL("image/jpeg", 0.92);
-}
-
-/* ============================================================
-   ADMIN — TABS
-   ============================================================ */
-$$(".tab-btn").forEach((b) => {
-  b.addEventListener("click", () => {
-    $$(".tab-btn").forEach((x) => x.classList.toggle("active", x === b));
-    $$(".tab-panel").forEach((p) => p.classList.toggle("hidden", p.dataset.panel !== b.dataset.tab));
+function checkAdmin() { return state.isAdmin && auth.currentUser?.email === ADMIN_EMAIL; }
+// ============================================================
+// SUBSCRIÇÕES (Realtime)
+// ============================================================
+function subscribeData() {
+  onValue(ref(db, "jogos"), (snap) => {
+    const val = snap.val() || {};
+    state.games = Object.entries(val).map(([id, g]) => ({ id, ...g }));
+    renderAll();
   });
-});
-
-/* ============================================================
-   ADMIN — JOGOS
-   ============================================================ */
-$("#admin-search").addEventListener("input", () => refreshAdminGames());
-$("#btn-new-game").addEventListener("click", () => openGameEdit(null));
-
-function loadAdminGames() { refreshAdminGames(); }
-function refreshAdminGames() {
-  if (!state.isAdmin) return;
-  const q = ($("#admin-search")?.value || "").toLowerCase();
-  const list = Object.entries(state.games).map(([id, g]) => ({ id, ...g }))
-    .filter((g) => !q || (g.name || "").toLowerCase().includes(q) || (g.serial_code || "").toLowerCase().includes(q))
-    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  const el = $("#admin-games-list");
-  if (!el) return;
-  el.innerHTML = list.map((g) => `
-    <div class="admin-row">
-      <div class="admin-row-main">
-        <b>${escapeHtml(g.name)}</b>
-        <span>${escapeHtml(g.serial_code || '')} · ${escapeHtml(g.category || 'sem categoria')} · ${Number(g.size_gb || 0).toFixed(2)}GB</span>
-      </div>
-      <div class="admin-row-actions">
-        <button class="btn btn-ghost" data-edit="${g.id}">Editar</button>
-        <button class="btn btn-danger" data-del="${g.id}">Excluir</button>
-      </div>
-    </div>`).join("") || `<p class="muted">Nenhum jogo cadastrado.</p>`;
-  el.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => openGameEdit(b.dataset.edit)));
-  el.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", async () => {
-    if (confirm("Excluir este jogo?")) await db.ref("games/" + b.dataset.del).remove();
-  }));
+  onValue(ref(db, "categorias"), (snap) => {
+    const val = snap.val() || {};
+    state.categories = Object.entries(val).map(([id, c]) => ({ id, ...c }));
+    renderCategoriesUI();
+  });
+  onValue(ref(db, "plataformas"), (snap) => {
+    const val = snap.val() || {};
+    state.platforms = Object.entries(val).map(([id, p]) => ({ id, ...p }));
+    renderPlatformsUI();
+  });
+  onValue(ref(db, "banners"), (snap) => {
+    const val = snap.val() || {};
+    state.banners = Object.entries(val).map(([id, b]) => ({ id, ...b }));
+    renderBanner();
+    renderAdminBanners();
+  });
+  onValue(ref(db, "configuracoes"), (snap) => {
+    state.settings = snap.val() || {};
+    applySettings();
+  });
 }
-
-function openGameEdit(id) {
-  state.editingGameId = id;
-  state.editingCoverBase64 = null;
-  const g = id ? state.games[id] : {};
-  $("#ge-title").textContent = id ? "Editar jogo" : "Novo jogo";
-  $("#ge-name").value = g.name || "";
-  $("#ge-code").value = g.serial_code || "";
-  $("#ge-category").value = g.category || "";
-  $("#ge-region").value = g.region || "";
-  $("#ge-size").value = g.size_gb || "";
-  $("#ge-cover").value = "";
-  $("#ge-preview").innerHTML = g.cover_base64 ? `<img src="${g.cover_base64}" />` : "";
-  $("#btn-delete-game").style.display = id ? "" : "none";
-  openModal("modal-game-edit");
+// ============================================================
+// CONFIG UI
+// ============================================================
+function applySettings() {
+  const s = state.settings || {};
+  if (s.nome) { $("#siteName").textContent = s.nome; document.title = s.nome; }
+  if (s.cor) document.documentElement.style.setProperty("--primary", s.cor);
+  if (s.favicon) { const link = document.querySelector("link[rel='icon']"); if (link) link.href = s.favicon; }
+  if (s.rodape) $("#footerText").textContent = s.rodape;
+  const socials = $("#socials");
+  socials.innerHTML = "";
+  const map = { facebook: "Facebook", instagram: "Instagram", youtube: "YouTube", twitter: "X" };
+  Object.entries(map).forEach(([k, label]) => {
+    if (s[k]) socials.insertAdjacentHTML("beforeend", `<a href="${escapeHtml(s[k])}" target="_blank" rel="noopener">${label}</a>`);
+  });
+  // preenche form config
+  $("#s_nome").value = s.nome || "";
+  $("#s_descricao").value = s.descricao || "";
+  $("#s_logo").value = s.logo || "";
+  $("#s_favicon").value = s.favicon || "";
+  $("#s_cor").value = s.cor || "#e50914";
+  $("#s_rodape").value = s.rodape || "";
+  $("#s_facebook").value = s.facebook || "";
+  $("#s_instagram").value = s.instagram || "";
+  $("#s_youtube").value = s.youtube || "";
+  $("#s_twitter").value = s.twitter || "";
 }
-
-$("#ge-cover").addEventListener("change", async (e) => {
-  const f = e.target.files[0];
-  if (!f) return;
-  const b64 = await fileToBase64(f, 400);
-  state.editingCoverBase64 = b64;
-  $("#ge-preview").innerHTML = `<img src="${b64}" />`;
-});
-
-$("#btn-save-game").addEventListener("click", async () => {
-  const payload = {
-    name: $("#ge-name").value.trim(),
-    serial_code: $("#ge-code").value.trim(),
-    category: $("#ge-category").value.trim(),
-    region: $("#ge-region").value.trim(),
-    size_gb: Number($("#ge-size").value) || 0
-  };
-  const err = $("#ge-err");
-  if (!payload.name || !payload.serial_code) {
-    err.textContent = "Nome e código são obrigatórios."; err.classList.remove("hidden"); return;
+// ============================================================
+// FILTROS / PESQUISA
+// ============================================================
+function loadFilterOptions() {
+  const years = [...new Set(state.games.map((g) => g.ano).filter(Boolean))].sort((a, b) => b - a);
+  const genres = [...new Set(state.games.map((g) => g.genero).filter(Boolean))].sort();
+  fillSelect("#filterCategory", state.categories.map((c) => c.nome), "Todas as categorias");
+  fillSelect("#filterPlatform", state.platforms.map((p) => p.nome), "Todas as plataformas");
+  fillSelect("#filterYear", years, "Todos os anos");
+  fillSelect("#filterGenre", genres, "Todos os gêneros");
+  // datalists admin
+  const dlc = $("#dl_categorias"); if (dlc) dlc.innerHTML = state.categories.map((c) => `<option value="${escapeHtml(c.nome)}">`).join("");
+  const dlp = $("#dl_plataformas"); if (dlp) dlp.innerHTML = state.platforms.map((p) => `<option value="${escapeHtml(p.nome)}">`).join("");
+}
+function fillSelect(sel, items, allLabel) {
+  const el = $(sel); if (!el) return;
+  const cur = el.value;
+  el.innerHTML = `<option value="">${allLabel}</option>` + items.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+  if (items.includes(cur)) el.value = cur;
+}
+function applyFilters(list) {
+  const { search, category, platform, year, genre, sort } = state.filters;
+  let out = list.filter((g) => g.ativo !== false);
+  if (search) {
+    const q = search.toLowerCase();
+    out = out.filter((g) =>
+      [g.titulo, g.categoria, g.plataforma, g.ano, g.genero].some((v) => String(v || "").toLowerCase().includes(q))
+    );
   }
-  err.classList.add("hidden");
-  if (state.editingCoverBase64) payload.cover_base64 = state.editingCoverBase64;
-  else if (state.editingGameId && state.games[state.editingGameId]?.cover_base64) {
-    payload.cover_base64 = state.games[state.editingGameId].cover_base64;
+  if (category) out = out.filter((g) => g.categoria === category);
+  if (platform) out = out.filter((g) => g.plataforma === platform);
+  if (year) out = out.filter((g) => String(g.ano) === String(year));
+  if (genre) out = out.filter((g) => g.genero === genre);
+  const byOrdem = (a, b) => (Number(a.ordem) || 0) - (Number(b.ordem) || 0);
+  switch (sort) {
+    case "az": out.sort((a, b) => (a.titulo || "").localeCompare(b.titulo || "")); break;
+    case "za": out.sort((a, b) => (b.titulo || "").localeCompare(a.titulo || "")); break;
+    case "old": out.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0)); break;
+    default: out.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0) || byOrdem(a, b));
   }
-  if (state.editingGameId) await db.ref("games/" + state.editingGameId).update(payload);
-  else await db.ref("games").push(payload);
-  closeModal("modal-game-edit");
-});
-
-$("#btn-delete-game").addEventListener("click", async () => {
-  if (state.editingGameId && confirm("Excluir este jogo?")) {
-    await db.ref("games/" + state.editingGameId).remove();
-    closeModal("modal-game-edit");
-  }
-});
-
-/* ============================================================
-   ADMIN — IMPORTAR CSV
-   Formato: name,serial_code,category,region,size_gb
-   ============================================================ */
-$("#csv-file").addEventListener("change", async (e) => {
-  const f = e.target.files[0]; if (!f) return;
-  const text = await f.text();
-  const lines = text.split(/\r?\n/).filter(Boolean);
-  const header = lines.shift().split(",").map((s) => s.trim().toLowerCase());
-  const idx = (name) => header.indexOf(name);
-  let count = 0;
-  const updates = {};
-  for (const line of lines) {
-    const cols = parseCsvLine(line);
-    const key = db.ref("games").push().key;
-    updates["games/" + key] = {
-      name: cols[idx("name")] || "",
-      serial_code: cols[idx("serial_code")] || "",
-      category: cols[idx("category")] || "",
-      region: cols[idx("region")] || "",
-      size_gb: Number(cols[idx("size_gb")]) || 0
-    };
-    count++;
-  }
-  await db.ref().update(updates);
-  alert(`${count} jogos importados.`);
-  e.target.value = "";
-});
-
-function parseCsvLine(line) {
-  const out = []; let cur = ""; let inQ = false;
-  for (const ch of line) {
-    if (ch === '"') { inQ = !inQ; continue; }
-    if (ch === "," && !inQ) { out.push(cur.trim()); cur = ""; }
-    else cur += ch;
-  }
-  out.push(cur.trim());
   return out;
 }
-
-/* ============================================================
-   ADMIN — LISTAS DE CLIENTES
-   ============================================================ */
-function loadAdminLists() {
-  if (!state.isAdmin) return;
-  const el = $("#admin-lists"); if (!el) return;
-  const lists = state.lists || {};
-  const entries = Object.entries(lists).sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
-  el.innerHTML = entries.map(([id, l]) => {
-    const u = l.userInfo || {};
-    const statusColor = l.status === "done" ? "#22c55e" : "#4dabff";
-    return `
-      <div class="admin-row">
-        <div class="admin-row-main">
-          <b>${escapeHtml(u.nome || '')} ${escapeHtml(u.sobrenome || '')}</b>
-          <span>${escapeHtml(u.whatsapp || '')} · ${escapeHtml(u.cidade || '')}/${escapeHtml(u.uf || '')}</span>
-          <span>${l.games?.length || 0} jogos · ${Number(l.usedGb || 0).toFixed(2)}GB / ${l.capacity}GB · ${new Date(l.createdAt).toLocaleString('pt-BR')}</span>
-          <span style="color:${statusColor}"><b>${l.status === 'done' ? 'FINALIZADA' : 'Pendente'}</b></span>
-        </div>
-        <div class="admin-row-actions">
-          <button class="btn btn-ghost" data-jpg="${id}">Baixar JPG</button>
-          <button class="btn btn-success" data-done="${id}">Encomenda finalizada</button>
-          <button class="btn btn-danger" data-del="${id}">Finalizar e excluir</button>
-        </div>
-      </div>`;
-  }).join("") || `<p class="muted">Nenhuma lista recebida ainda.</p>`;
-
-  el.querySelectorAll("[data-jpg]").forEach((b) => b.addEventListener("click", async () => {
-    const l = state.lists[b.dataset.jpg];
-    const dataUrl = await renderListToJpg(l.userInfo, l.games, l.capacity);
-    const a = document.createElement("a");
-    a.href = dataUrl; a.download = `lista-${l.userInfo?.nome || 'cliente'}.jpg`; a.click();
-  }));
-  el.querySelectorAll("[data-done]").forEach((b) => b.addEventListener("click", async () => {
-    await db.ref("lists/" + b.dataset.done + "/status").set("done");
-  }));
-  el.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", async () => {
-    if (confirm("Finalizar e excluir esta lista?")) await db.ref("lists/" + b.dataset.del).remove();
-  }));
+// ============================================================
+// RENDER
+// ============================================================
+function renderAll() {
+  loadFilterOptions();
+  const filtered = applyFilters(state.games);
+  const recent = [...filtered].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 12);
+  const featured = filtered.filter((g) => g.destaque).slice(0, 12);
+  const popular = filtered.filter((g) => g.popular).slice(0, 12);
+  renderGrid("#gridRecent", recent);
+  renderGrid("#gridFeatured", featured);
+  renderGrid("#gridPopular", popular);
+  renderGrid("#gridAll", filtered);
+  $("#emptyState").hidden = filtered.length > 0;
+  renderAdminGames();
+  renderStats();
 }
-
-/* ============================================================
-   UTIL
-   ============================================================ */
-function escapeHtml(s) { return String(s || "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
-
-function fileToBase64(file, maxWidth) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      // redimensionar para reduzir tamanho no realtime DB
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const scale = Math.min(1, maxWidth / img.width);
-        canvas.width = img.width * scale;
-        canvas.height = img.height * scale;
-        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", 0.8));
-      };
-      img.onerror = reject;
-      img.src = reader.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+function renderGrid(sel, list) {
+  const el = $(sel); if (!el) return;
+  if (!list.length) { el.innerHTML = ""; return; }
+  el.innerHTML = list.map(cardHTML).join("");
+  $$(".card", el).forEach((c) => c.addEventListener("click", () => openGameModal(c.dataset.id)));
+}
+function cardHTML(g) {
+  const cover = g.imagem || "https://via.placeholder.com/400x533/14171f/9aa3b2?text=Sem+Imagem";
+  return `
+    <article class="card" data-id="${g.id}" tabindex="0" role="button" aria-label="Ver detalhes de ${escapeHtml(g.titulo)}">
+      <div class="card-cover" style="background-image:url('${escapeHtml(cover)}')" aria-hidden="true"></div>
+      <div class="card-body">
+        <h3 class="card-title">${escapeHtml(g.titulo || "Sem título")}</h3>
+        <div class="card-meta">
+          ${g.plataforma ? `<span class="badge">${escapeHtml(g.plataforma)}</span>` : ""}
+          ${g.ano ? `<span class="badge">${escapeHtml(g.ano)}</span>` : ""}
+          ${g.nota ? `<span class="badge badge-accent">★ ${escapeHtml(g.nota)}</span>` : ""}
+        </div>
+      </div>
+    </article>`;
+}
+function renderBanner() {
+  const track = $("#bannerTrack");
+  const dots = $("#bannerDots");
+  const banners = state.banners.filter((b) => b.ativo !== false).sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+  if (!banners.length) { track.innerHTML = `<div class="banner-slide active" style="background:linear-gradient(135deg,#221024,#1a1f2c)"><div class="banner-slide-content"><h2>Bem-vindo</h2><p>Explore o catálogo completo de jogos.</p></div></div>`; dots.innerHTML = ""; return; }
+  track.innerHTML = banners.map((b, i) => `
+    <div class="banner-slide ${i === 0 ? "active" : ""}" style="background-image:url('${escapeHtml(b.imagem || "")}')">
+      <div class="banner-slide-content">
+        <h2>${escapeHtml(b.titulo || "")}</h2>
+        <p>${escapeHtml(b.descricao || "")}</p>
+        ${b.link ? `<a class="btn btn-primary" href="${escapeHtml(b.link)}" target="_blank" rel="noopener">${escapeHtml(b.botao || "Saiba mais")}</a>` : ""}
+      </div>
+    </div>`).join("");
+  dots.innerHTML = banners.map((_, i) => `<button class="banner-dot ${i === 0 ? "active" : ""}" role="tab" aria-label="Slide ${i + 1}" data-i="${i}"></button>`).join("");
+  $$(".banner-dot", dots).forEach((d) => d.addEventListener("click", () => setBanner(Number(d.dataset.i))));
+  startBannerAuto();
+}
+let bannerTimer = null, bannerIdx = 0;
+function setBanner(i) {
+  const slides = $$(".banner-slide"); const dots = $$(".banner-dot");
+  if (!slides.length) return;
+  bannerIdx = (i + slides.length) % slides.length;
+  slides.forEach((s, k) => s.classList.toggle("active", k === bannerIdx));
+  dots.forEach((d, k) => d.classList.toggle("active", k === bannerIdx));
+}
+function startBannerAuto() {
+  clearInterval(bannerTimer);
+  bannerTimer = setInterval(() => setBanner(bannerIdx + 1), 6000);
+}
+function renderCategoriesUI() {
+  loadFilterOptions();
+  renderAll();
+  const ul = $("#adminCategoriesList");
+  if (ul) ul.innerHTML = state.categories.map((c) => `
+    <li>
+      <span>${escapeHtml(c.nome)}</span>
+      <span class="row-actions">
+        <button data-edit-cat="${c.id}" data-nome="${escapeHtml(c.nome)}">Editar</button>
+        <button data-del-cat="${c.id}">Excluir</button>
+      </span>
+    </li>`).join("");
+}
+function renderPlatformsUI() {
+  loadFilterOptions();
+  renderAll();
+  const ul = $("#adminPlatformsList");
+  if (ul) ul.innerHTML = state.platforms.map((p) => `
+    <li>
+      <span>${escapeHtml(p.nome)}</span>
+      <span class="row-actions">
+        <button data-edit-plat="${p.id}" data-nome="${escapeHtml(p.nome)}">Editar</button>
+        <button data-del-plat="${p.id}">Excluir</button>
+      </span>
+    </li>`).join("");
+}
+// ============================================================
+// MODAL DETALHES
+// ============================================================
+function openGameModal(id) {
+  const g = state.games.find((x) => x.id === id);
+  if (!g) return;
+  const cover = g.imagem || "https://via.placeholder.com/500x666/14171f/9aa3b2?text=Sem+Imagem";
+  const gallery = (typeof g.galeria === "string" ? g.galeria.split(",") : (g.galeria || [])).map((s) => String(s).trim()).filter(Boolean);
+  const yt = ytEmbedUrl(g.video);
+  $("#modalBody").innerHTML = `
+    <div class="modal-cover" style="background-image:url('${escapeHtml(cover)}')"></div>
+    <div class="modal-info">
+      <h2 id="modalTitle">${escapeHtml(g.titulo || "")}</h2>
+      <div class="card-meta">
+        ${g.plataforma ? `<span class="badge badge-primary">${escapeHtml(g.plataforma)}</span>` : ""}
+        ${g.categoria ? `<span class="badge">${escapeHtml(g.categoria)}</span>` : ""}
+        ${g.nota ? `<span class="badge badge-accent">★ ${escapeHtml(g.nota)}</span>` : ""}
+      </div>
+      <p>${escapeHtml(g.descricao || "")}</p>
+      <div class="info-grid">
+        ${infoRow("Gênero", g.genero)}
+        ${infoRow("Ano", g.ano)}
+        ${infoRow("Jogadores", g.jogadores)}
+        ${infoRow("Idioma", g.idioma)}
+        ${infoRow("Formato", g.formato)}
+        ${infoRow("Tamanho", g.tamanho)}
+        ${infoRow("Empresa", g.empresa)}
+        ${infoRow("Desenvolvedora", g.desenvolvedora)}
+        ${infoRow("Publicadora", g.publicadora)}
+      </div>
+    </div>
+    ${yt ? `<div class="modal-video"><iframe src="${yt}" title="Trailer" allowfullscreen loading="lazy"></iframe></div>` : ""}
+    ${gallery.length ? `<div class="modal-gallery">${gallery.map((src) => `<img loading="lazy" src="${escapeHtml(src)}" alt="Imagem de ${escapeHtml(g.titulo)}" />`).join("")}</div>` : ""}
+  `;
+  openModal("gameModal");
+}
+function infoRow(label, v) { return v ? `<div><strong>${label}</strong>${escapeHtml(v)}</div>` : ""; }
+function openModal(id) { const el = document.getElementById(id); el.classList.add("open"); el.setAttribute("aria-hidden", "false"); }
+function closeModal(id) { const el = document.getElementById(id); el.classList.remove("open"); el.setAttribute("aria-hidden", "true"); }
+// ============================================================
+// ADMIN - PAINEL
+// ============================================================
+function openAdminPanel() { const p = $("#adminPanel"); p.hidden = false; p.setAttribute("aria-hidden", "false"); document.body.style.overflow = "hidden"; renderAdminGames(); renderStats(); renderAdminBanners(); }
+function closeAdminPanel() { const p = $("#adminPanel"); p.hidden = true; p.setAttribute("aria-hidden", "true"); document.body.style.overflow = ""; }
+function renderStats() {
+  const s = $("#statsGrid"); if (!s) return;
+  const total = state.games.length;
+  const ativos = state.games.filter((g) => g.ativo !== false).length;
+  const inativos = total - ativos;
+  const destaques = state.games.filter((g) => g.destaque).length;
+  const cats = state.categories.length;
+  const plats = state.platforms.length;
+  s.innerHTML = [
+    ["Jogos", total], ["Ativos", ativos], ["Inativos", inativos],
+    ["Destaques", destaques], ["Categorias", cats], ["Plataformas", plats],
+  ].map(([label, value]) => `<div class="stat-card"><div class="label">${label}</div><div class="value">${value}</div></div>`).join("");
+  const latest = [...state.games].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 6);
+  const dl = $("#dashLatest"); if (dl) { dl.innerHTML = latest.map(cardHTML).join(""); $$(".card", dl).forEach((c) => c.addEventListener("click", () => openGameModal(c.dataset.id))); }
+}
+function renderAdminGames() {
+  const tbody = $("#adminGamesBody"); if (!tbody) return;
+  const list = [...state.games].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  tbody.innerHTML = list.map((g) => `
+    <tr>
+      <td>${escapeHtml(g.titulo || "")}</td>
+      <td>${escapeHtml(g.categoria || "")}</td>
+      <td>${escapeHtml(g.plataforma || "")}</td>
+      <td>${escapeHtml(g.ano || "")}</td>
+      <td>${g.ativo === false ? "Não" : "Sim"}</td>
+      <td class="row-actions">
+        <button data-edit-game="${g.id}">Editar</button>
+        <button data-del-game="${g.id}">Excluir</button>
+      </td>
+    </tr>`).join("");
+}
+function renderAdminBanners() {
+  const ul = $("#adminBannersList"); if (!ul) return;
+  ul.innerHTML = state.banners.sort((a, b) => (a.ordem || 0) - (b.ordem || 0)).map((b) => `
+    <li>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <img src="${escapeHtml(b.imagem || "")}" alt="" loading="lazy" />
+        <div><strong>${escapeHtml(b.titulo || "(sem título)")}</strong><br /><small>${escapeHtml(b.descricao || "")}</small></div>
+      </div>
+      <div class="row-actions">
+        <button data-edit-banner="${b.id}">Editar</button>
+        <button data-del-banner="${b.id}">Excluir</button>
+      </div>
+    </li>`).join("");
+}
+// ============================================================
+// CRUD - JOGOS
+// ============================================================
+function fillGameForm(g = {}) {
+  $("#gameId").value = g.id || "";
+  $("#g_titulo").value = g.titulo || "";
+  $("#g_categoria").value = g.categoria || "";
+  $("#g_plataforma").value = g.plataforma || "";
+  $("#g_ano").value = g.ano || "";
+  $("#g_genero").value = g.genero || "";
+  $("#g_empresa").value = g.empresa || "";
+  $("#g_desenvolvedora").value = g.desenvolvedora || "";
+  $("#g_publicadora").value = g.publicadora || "";
+  $("#g_idioma").value = g.idioma || "";
+  $("#g_jogadores").value = g.jogadores || "";
+  $("#g_formato").value = g.formato || "";
+  $("#g_tamanho").value = g.tamanho || "";
+  $("#g_nota").value = g.nota || "";
+  $("#g_ordem").value = g.ordem || "";
+  $("#g_imagem").value = g.imagem || "";
+  $("#g_galeria").value = Array.isArray(g.galeria) ? g.galeria.join(", ") : (g.galeria || "");
+  $("#g_video").value = g.video || "";
+  $("#g_descricao").value = g.descricao || "";
+  $("#g_destaque").checked = !!g.destaque;
+  $("#g_popular").checked = !!g.popular;
+  $("#g_novo").checked = !!g.novo;
+  $("#g_ativo").checked = g.ativo !== false;
+}
+async function saveGame(e) {
+  e.preventDefault();
+  if (!checkAdmin()) return;
+  const id = $("#gameId").value;
+  const titulo = $("#g_titulo").value.trim();
+  if (!titulo) return showToast("Título é obrigatório", "error");
+  const data = {
+    titulo,
+    descricao: $("#g_descricao").value.trim(),
+    categoria: $("#g_categoria").value.trim(),
+    plataforma: $("#g_plataforma").value.trim(),
+    ano: Number($("#g_ano").value) || null,
+    genero: $("#g_genero").value.trim(),
+    empresa: $("#g_empresa").value.trim(),
+    desenvolvedora: $("#g_desenvolvedora").value.trim(),
+    publicadora: $("#g_publicadora").value.trim(),
+    idioma: $("#g_idioma").value.trim(),
+    jogadores: $("#g_jogadores").value.trim(),
+    formato: $("#g_formato").value.trim(),
+    tamanho: $("#g_tamanho").value.trim(),
+    nota: Number($("#g_nota").value) || null,
+    popular: $("#g_popular").checked,
+    destaque: $("#g_destaque").checked,
+    novo: $("#g_novo").checked,
+    ativo: $("#g_ativo").checked,
+    imagem: $("#g_imagem").value.trim(),
+    galeria: $("#g_galeria").value.split(",").map((s) => s.trim()).filter(Boolean),
+    video: $("#g_video").value.trim(),
+    ordem: Number($("#g_ordem").value) || 0,
+    timestamp: id ? (state.games.find((x) => x.id === id)?.timestamp || Date.now()) : Date.now(),
+  };
+  showLoading();
+  try {
+    if (id) await update(ref(db, "jogos/" + id), data);
+    else await push(ref(db, "jogos"), data);
+    showToast("Jogo salvo!", "success");
+    hideGameForm();
+  } catch (err) { console.error(err); showToast("Erro ao salvar.", "error"); }
+  finally { hideLoading(); }
+}
+async function deleteGame(id) {
+  if (!checkAdmin()) return;
+  if (!confirmAction("Excluir este jogo?")) return;
+  await remove(ref(db, "jogos/" + id));
+  showToast("Jogo excluído.", "success");
+}
+function showGameForm(g) { $("#gameFormWrapper").hidden = false; fillGameForm(g || {}); window.scrollTo({ top: 0, behavior: "smooth" }); }
+function hideGameForm() { $("#gameFormWrapper").hidden = true; $("#gameForm").reset(); $("#gameId").value = ""; }
+// ============================================================
+// CRUD - CATEGORIAS
+// ============================================================
+async function saveCategory(e) {
+  e.preventDefault();
+  if (!checkAdmin()) return;
+  const id = $("#catId").value; const nome = $("#catNome").value.trim();
+  if (!nome) return;
+  if (id) await update(ref(db, "categorias/" + id), { nome });
+  else await push(ref(db, "categorias"), { nome });
+  $("#catId").value = ""; $("#catNome").value = ""; $("#btnCancelCat").hidden = true;
+  showToast("Categoria salva.", "success");
+}
+async function deleteCategory(id) {
+  if (!checkAdmin()) return;
+  if (!confirmAction("Excluir categoria?")) return;
+  await remove(ref(db, "categorias/" + id));
+}
+// ============================================================
+// CRUD - PLATAFORMAS
+// ============================================================
+async function savePlatform(e) {
+  e.preventDefault();
+  if (!checkAdmin()) return;
+  const id = $("#platId").value; const nome = $("#platNome").value.trim();
+  if (!nome) return;
+  if (id) await update(ref(db, "plataformas/" + id), { nome });
+  else await push(ref(db, "plataformas"), { nome });
+  $("#platId").value = ""; $("#platNome").value = ""; $("#btnCancelPlat").hidden = true;
+  showToast("Plataforma salva.", "success");
+}
+async function deletePlatform(id) {
+  if (!checkAdmin()) return;
+  if (!confirmAction("Excluir plataforma?")) return;
+  await remove(ref(db, "plataformas/" + id));
+}
+// ============================================================
+// CRUD - BANNERS
+// ============================================================
+async function saveBanner(e) {
+  e.preventDefault();
+  if (!checkAdmin()) return;
+  const id = $("#bId").value;
+  const data = {
+    imagem: $("#b_imagem").value.trim(),
+    titulo: $("#b_titulo").value.trim(),
+    descricao: $("#b_descricao").value.trim(),
+    botao: $("#b_botao").value.trim(),
+    link: $("#b_link").value.trim(),
+    ordem: Number($("#b_ordem").value) || 0,
+    ativo: $("#b_ativo").checked,
+  };
+  if (!data.imagem) return showToast("Imagem obrigatória", "error");
+  if (id) await update(ref(db, "banners/" + id), data);
+  else await push(ref(db, "banners"), data);
+  $("#bannerForm").reset(); $("#bId").value = "";
+  showToast("Banner salvo.", "success");
+}
+async function deleteBanner(id) {
+  if (!checkAdmin()) return;
+  if (!confirmAction("Excluir banner?")) return;
+  await remove(ref(db, "banners/" + id));
+}
+// ============================================================
+// CONFIGURAÇÕES
+// ============================================================
+async function saveSettings(e) {
+  e.preventDefault();
+  if (!checkAdmin()) return;
+  const data = {
+    nome: $("#s_nome").value.trim(),
+    descricao: $("#s_descricao").value.trim(),
+    logo: $("#s_logo").value.trim(),
+    favicon: $("#s_favicon").value.trim(),
+    cor: $("#s_cor").value,
+    rodape: $("#s_rodape").value.trim(),
+    facebook: $("#s_facebook").value.trim(),
+    instagram: $("#s_instagram").value.trim(),
+    youtube: $("#s_youtube").value.trim(),
+    twitter: $("#s_twitter").value.trim(),
+  };
+  await set(ref(db, "configuracoes"), data);
+  showToast("Configurações salvas.", "success");
+}
+// ============================================================
+// EVENTOS
+// ============================================================
+function bindEvents() {
+  // Menu mobile
+  $("#menuToggle").addEventListener("click", () => {
+    const nav = $("#mainNav"); const isOpen = nav.classList.toggle("open");
+    $("#menuToggle").setAttribute("aria-expanded", String(isOpen));
   });
+  // Pesquisa
+  $("#searchInput").addEventListener("input", (e) => { state.filters.search = e.target.value; renderAll(); });
+  // Filtros
+  ["Category", "Platform", "Year", "Genre", "Sort"].forEach((k) => {
+    const key = k.toLowerCase();
+    $(`#filter${k}`).addEventListener("change", (e) => { state.filters[key] = e.target.value; renderAll(); });
+  });
+  $("#btnClearFilters").addEventListener("click", () => {
+    state.filters = { search: "", category: "", platform: "", year: "", genre: "", sort: "recent" };
+    $("#searchInput").value = "";
+    ["#filterCategory", "#filterPlatform", "#filterYear", "#filterGenre"].forEach((s) => ($(s).value = ""));
+    $("#filterSort").value = "recent";
+    renderAll();
+  });
+  // Modais
+  $$("[data-close]").forEach((el) => el.addEventListener("click", (e) => {
+    const modal = e.target.closest(".modal"); if (modal) closeModal(modal.id);
+  }));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") $$(".modal.open").forEach((m) => closeModal(m.id));
+  });
+  // Login modal
+  $("#btnAdminOpen").addEventListener("click", () => {
+    if (state.isAdmin) openAdminPanel();
+    else openModal("loginModal");
+  });
+  $("#loginForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    login($("#loginEmail").value.trim(), $("#loginPassword").value);
+  });
+  // Admin panel
+  $("#btnLogout").addEventListener("click", logout);
+  $("#btnAdminClose").addEventListener("click", closeAdminPanel);
+  // Tabs
+  $$(".tab").forEach((t) => t.addEventListener("click", () => {
+    $$(".tab").forEach((x) => x.classList.remove("active"));
+    $$(".tab-panel").forEach((x) => x.classList.remove("active"));
+    t.classList.add("active");
+    $(`.tab-panel[data-panel="${t.dataset.tab}"]`).classList.add("active");
+  }));
+  // Games CRUD
+  $("#btnNewGame").addEventListener("click", () => showGameForm(null));
+  $("#btnCancelGame").addEventListener("click", hideGameForm);
+  $("#gameForm").addEventListener("submit", saveGame);
+  document.addEventListener("click", (e) => {
+    const eg = e.target.closest("[data-edit-game]");
+    if (eg) { const g = state.games.find((x) => x.id === eg.dataset.editGame); if (g) showGameForm(g); }
+    const dg = e.target.closest("[data-del-game]");
+    if (dg) deleteGame(dg.dataset.delGame);
+    const ec = e.target.closest("[data-edit-cat]");
+    if (ec) { $("#catId").value = ec.dataset.editCat; $("#catNome").value = ec.dataset.nome; $("#btnCancelCat").hidden = false; }
+    const dc = e.target.closest("[data-del-cat]");
+    if (dc) deleteCategory(dc.dataset.delCat);
+    const ep = e.target.closest("[data-edit-plat]");
+    if (ep) { $("#platId").value = ep.dataset.editPlat; $("#platNome").value = ep.dataset.nome; $("#btnCancelPlat").hidden = false; }
+    const dp = e.target.closest("[data-del-plat]");
+    if (dp) deletePlatform(dp.dataset.delPlat);
+    const eb = e.target.closest("[data-edit-banner]");
+    if (eb) {
+      const b = state.banners.find((x) => x.id === eb.dataset.editBanner);
+      if (b) { $("#bId").value = b.id; $("#b_imagem").value = b.imagem || ""; $("#b_titulo").value = b.titulo || "";
+        $("#b_descricao").value = b.descricao || ""; $("#b_botao").value = b.botao || "";
+        $("#b_link").value = b.link || ""; $("#b_ordem").value = b.ordem || 0; $("#b_ativo").checked = b.ativo !== false;
+        window.scrollTo({ top: 0, behavior: "smooth" }); }
+    }
+    const db2 = e.target.closest("[data-del-banner]");
+    if (db2) deleteBanner(db2.dataset.delBanner);
+  });
+  // Categoria / Plataforma / Banner / Settings
+  $("#categoryForm").addEventListener("submit", saveCategory);
+  $("#btnCancelCat").addEventListener("click", () => { $("#catId").value = ""; $("#catNome").value = ""; $("#btnCancelCat").hidden = true; });
+  $("#platformForm").addEventListener("submit", savePlatform);
+  $("#btnCancelPlat").addEventListener("click", () => { $("#platId").value = ""; $("#platNome").value = ""; $("#btnCancelPlat").hidden = true; });
+  $("#bannerForm").addEventListener("submit", saveBanner);
+  $("#btnCancelBanner").addEventListener("click", () => { $("#bannerForm").reset(); $("#bId").value = ""; });
+  $("#settingsForm").addEventListener("submit", saveSettings);
+  // Scroll top
+  const btnTop = $("#btnTop");
+  window.addEventListener("scroll", () => { btnTop.hidden = window.scrollY < 400; });
+  btnTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+  // Nav categorias/plataformas → scroll para filtros
+  $$("[data-filter-nav]").forEach((a) => a.addEventListener("click", (e) => {
+    e.preventDefault();
+    document.querySelector(".filters").scrollIntoView({ behavior: "smooth", block: "start" });
+  }));
 }
-
-/* init */
-fillCapacityInputs();
-refreshStorage();
+// ============================================================
+// BOOT
+// ============================================================
+document.addEventListener("DOMContentLoaded", () => {
+  bindEvents();
+  initFirebase();
+});
