@@ -1,4 +1,4 @@
-/* ========================================================= 
+/* =========================================================
  * CATÁLOGO RETRO - script.js
  * Firebase Authentication + Realtime Database
  * Estrutura modular via IIFE / módulos internos
@@ -48,6 +48,7 @@ const state = {
   selectedPendriveId: null,
   filters: { search: "", category: "", subcategory: "", sort: "alpha" },
   currentPage: 1,
+  viewMode: (typeof localStorage !== "undefined" && localStorage.getItem("catalogViewMode")) || "grid",
   isAdmin: false,
 };
 
@@ -284,8 +285,15 @@ function renderCatalog() {
 
   $("#emptyState").classList.toggle("hidden", total > 0);
 
+  // Aplica classe do modo de exibição (grid | list)
+  wrap.classList.toggle("list", state.viewMode === "list");
+
   wrap.innerHTML = items.map((g) => {
     const inList = state.cart.some((c) => c.id === g.id);
+    // Botão dinâmico: adicionar (azul) OU remover (vermelho) quando já está na lista
+    const actionBtn = inList
+      ? `<button class="card-action remove" title="Remover da lista" data-remove="${g.id}" aria-label="Remover da lista"><i class="fa-solid fa-trash"></i></button>`
+      : `<button class="card-action add"    title="Adicionar à lista" data-add="${g.id}"    aria-label="Adicionar à lista"><i class="fa-solid fa-plus"></i></button>`;
     return `
       <div class="game-card ${inList ? "in-list" : ""}" data-id="${g.id}">
         <div class="thumb"><img loading="lazy" src="${esc(g.image || "")}" alt="${esc(g.name)}" onerror="this.style.opacity=.15"/></div>
@@ -296,7 +304,7 @@ function renderCatalog() {
             <span>${fmt(g.size)} GB</span>
           </div>
         </div>
-        <button class="add" title="Adicionar" data-add="${g.id}"><i class="fa-solid fa-plus"></i></button>
+        ${actionBtn}
       </div>
     `;
   }).join("");
@@ -1094,10 +1102,28 @@ function openGameForm(editId) {
 function bindPublicUI() {
   // Delegação: cards e botões
   $("#gamesGrid").addEventListener("click", (e) => {
+    const rm = e.target.closest("[data-remove]");
+    if (rm) { e.stopPropagation(); removeFromCart(rm.dataset.remove); return; }
     const add = e.target.closest("[data-add]");
     if (add) { e.stopPropagation(); addToCart(add.dataset.add); return; }
     const card = e.target.closest(".game-card");
     if (card) openGameDetail(card.dataset.id);
+  });
+
+  // Alternância entre modo Grade e Lista
+  document.querySelectorAll("[data-view-mode]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = btn.dataset.viewMode;
+      if (mode === state.viewMode) return;
+      state.viewMode = mode;
+      try { localStorage.setItem("catalogViewMode", mode); } catch {}
+      document.querySelectorAll("[data-view-mode]").forEach((b) => {
+        const active = b.dataset.viewMode === mode;
+        b.classList.toggle("active", active);
+        b.setAttribute("aria-pressed", String(active));
+      });
+      renderCatalog();
+    });
   });
 
   $("#pagination").addEventListener("click", (e) => {
