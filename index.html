@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Catálogo Retro - Monte sua lista de jogos e escolha seu pendrive." />
-  <title>Workin'Store| Sua lista</title>
+  <title>Workin'Store | Sua lista</title>
   <link id="faviconLink" rel="icon" href="favicon.ico" type="image/x-icon" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -76,6 +76,18 @@
         <option value="heavy">Mais pesados</option>
       </select>
     </section>
+
+    <!-- Barra de modo de exibição (grid / lista) -->
+    <div class="view-toggle-bar">
+      <div class="view-toggle" role="group" aria-label="Modo de exibição">
+        <button type="button" class="vt-btn active" data-view-mode="grid" aria-pressed="true" title="Ver em grade">
+          <i class="fa-solid fa-th-large"></i><span>Grade</span>
+        </button>
+        <button type="button" class="vt-btn" data-view-mode="list" aria-pressed="false" title="Ver em lista">
+          <i class="fa-solid fa-list-ul"></i><span>Lista</span>
+        </button>
+      </div>
+    </div>
 
     <!-- Catálogo -->
     <main class="catalog-wrapper">
